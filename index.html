@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creativity — Custom 3D Printing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { heading: ['Space Grotesk', 'sans-serif'], body: ['DM Sans', 'sans-serif'] },
+                    colors: {
+                        brand: { 400: '#FF6B35', 500: '#FF4D10', 600: '#F03406' },
+                        surface: { 900: '#0A0A0B', 800: '#111113', 700: '#1A1A1D', 600: '#222226', 500: '#2C2C31', 400: '#3A3A40' },
+                        muted: { 300: '#A1A1AA', 400: '#71717A', 500: '#52525B' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        *,*::before,*::after{box-sizing:border-box}
+        body{background:#0A0A0B;color:#EDEDEF;font-family:'DM Sans',sans-serif;overflow-x:hidden}
+        h1,h2,h3,h4,h5,h6{font-family:'Space Grotesk',sans-serif}
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#111113}::-webkit-scrollbar-thumb{background:#3A3A40;border-radius:3px}
+        .grid-bg{background-image:linear-gradient(rgba(255,107,53,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,53,0.04) 1px,transparent 1px);background-size:50px 50px}
+        .geo{position:absolute;pointer-events:none;opacity:0;animation:geoIn 1s ease forwards}
+        .geo-cube{width:40px;height:40px;border:1px solid rgba(255,107,53,0.12);animation:geoIn 1s ease forwards,geoFloat 18s ease-in-out infinite}
+        .geo-ring{width:60px;height:60px;border-radius:50%;border:1px solid rgba(255,107,53,0.1);animation:geoIn 1s ease forwards,geoFloat 22s ease-in-out infinite reverse}
+        .geo-diamond{width:30px;height:30px;border:1px solid rgba(255,107,53,0.08);transform:rotate(45deg);animation:geoIn 1s ease forwards,geoFloat 15s ease-in-out infinite}
+        @keyframes geoIn{to{opacity:1}}@keyframes geoFloat{0%,100%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-25px) rotate(60deg)}66%{transform:translateY(-15px) rotate(120deg)}}
+        .glow-blob{position:absolute;border-radius:50%;filter:blur(100px);pointer-events:none;background:radial-gradient(circle,rgba(255,107,53,0.12) 0%,transparent 70%)}
+        .view{display:none;animation:viewIn .4s ease}.view.active{display:block}
+        @keyframes viewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        .step-panel{display:none;animation:stepIn .35s ease}.step-panel.active{display:block}
+        @keyframes stepIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+        .card-preview{background:linear-gradient(135deg,#1A1A1D 0%,#2C2C31 50%,#1A1A1D 100%);border:1px solid #3A3A40;border-radius:12px;padding:24px;position:relative;overflow:hidden;aspect-ratio:1.586/1;max-width:380px}
+        .card-preview::before{content:'';position:absolute;top:-50%;right:-50%;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle,rgba(255,107,53,0.08) 0%,transparent 70%)}
+        .upload-zone{border:2px dashed #3A3A40;border-radius:12px;padding:40px 20px;text-align:center;transition:all .3s ease;cursor:pointer}
+        .upload-zone:hover,.upload-zone.dragover{border-color:#FF6B35;background:rgba(255,107,53,0.04)}
+        .upload-zone.has-file{border-color:#34D399;background:rgba(52,211,153,0.04)}
+        .badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:.3px}
+        .badge-pending{background:rgba(251,191,36,0.15);color:#FBBF24}.badge-priced{background:rgba(96,165,250,0.15);color:#60A5FA}
+        .badge-paid{background:rgba(52,211,153,0.15);color:#34D399}.badge-printing{background:rgba(255,107,53,0.15);color:#FF6B35}
+        .badge-completed{background:rgba(52,211,153,0.2);color:#34D399}.badge-rejected{background:rgba(248,113,113,0.15);color:#F87171}
+        .toast{animation:toastIn .4s ease,toastOut .4s ease 3.6s forwards;backdrop-filter:blur(12px)}
+        @keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes toastOut{to{opacity:0;transform:translateX(40px)}}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+        .modal-overlay.open{display:flex;animation:modalIn .3s ease}
+        @keyframes modalIn{from{opacity:0}to{opacity:1}}
+        .modal-content{animation:modalContentIn .3s ease;max-height:90vh;overflow-y:auto}
+        @keyframes modalContentIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        .input-field{width:100%;padding:12px 16px;background:#111113;border:1px solid #2C2C31;border-radius:8px;color:#EDEDEF;font-size:14px;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+        .input-field:focus{outline:none;border-color:#FF6B35}.input-field::placeholder{color:#52525B}
+        select.input-field{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2371717A' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+        .btn-primary{padding:12px 28px;background:#FF6B35;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-primary:hover{background:#FF4D10;transform:translateY(-1px);box-shadow:0 4px 20px rgba(255,107,53,0.3)}.btn-primary:active{transform:translateY(0)}.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+        .btn-secondary{padding:12px 28px;background:transparent;color:#A1A1AA;border:1px solid #3A3A40;border-radius:8px;font-weight:500;font-size:14px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-secondary:hover{border-color:#52525B;color:#EDEDEF}
+        .btn-danger{padding:10px 20px;background:rgba(248,113,113,0.1);color:#F87171;border:1px solid rgba(248,113,113,0.2);border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-danger:hover{background:rgba(248,113,113,0.2)}
+        .btn-danger-solid{padding:12px 28px;background:#F87171;color:white;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-danger-solid:hover{background:#EF4444}
+        .btn-success{padding:10px 20px;background:rgba(52,211,153,0.1);color:#34D399;border:1px solid rgba(52,211,153,0.2);border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-success:hover{background:rgba(52,211,153,0.2)}
+        .btn-success-solid{padding:12px 28px;background:#34D399;color:#0A0A0B;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-success-solid:hover{background:#2DD4A0;transform:translateY(-1px);box-shadow:0 4px 20px rgba(52,211,153,0.3)}
+        .btn-download{padding:8px 16px;background:rgba(96,165,250,0.1);color:#60A5FA;border:1px solid rgba(96,165,250,0.2);border-radius:8px;font-weight:600;font-size:12px;cursor:pointer;transition:all .2s;font-family:'Space Grotesk',sans-serif}
+        .btn-download:hover{background:rgba(96,165,250,0.2)}
+        .color-swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s}
+        .color-swatch:hover{transform:scale(1.15)}.color-swatch.selected{border-color:#FF6B35;box-shadow:0 0 0 2px rgba(255,107,53,0.3)}
+        .stl-container{width:100%;aspect-ratio:4/3;background:#111113;border-radius:8px;overflow:hidden;position:relative}
+        .stl-container canvas{width:100%!important;height:100%!important}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}.animate-pulse-slow{animation:pulse 2s ease-in-out infinite}
+        .mobile-menu{display:none}.mobile-menu.open{display:flex}
+        .price-highlight{background:linear-gradient(135deg,rgba(255,107,53,0.08) 0%,rgba(255,107,53,0.02) 100%);border:1px solid rgba(255,107,53,0.2);border-radius:16px}
+        .order-card{background:#111113;border:1px solid #2C2C31;border-radius:16px;transition:border-color .2s}.order-card:hover{border-color:#3A3A40}
+        .order-card-inner{padding:20px 24px}
+        .avatar-circle{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+    </style>
+</head>
+<body>
+    <nav class="fixed top-0 left-0 right-0 z-50 border-b border-surface-500/50" style="background:rgba(10,10,11,0.85);backdrop-filter:blur(16px);">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+            <a href="#/" class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-brand-400 flex items-center justify-center"><i class="fa-solid fa-cube text-white text-sm"></i></div><span class="font-heading font-bold text-lg tracking-tight">Creativity</span></a>
+            <div class="hidden md:flex items-center gap-6" id="nav-links">
+                <a href="#/" class="text-sm text-muted-300 hover:text-white transition-colors">Home</a>
+                <a href="#/order" class="text-sm text-muted-300 hover:text-white transition-colors nav-order-link">Place Order</a>
+                <a href="#/my-orders" class="text-sm text-muted-300 hover:text-white transition-colors nav-orders-link">My Orders</a>
+                <div id="nav-auth"></div>
+            </div>
+            <button class="md:hidden text-muted-300 hover:text-white p-2" id="mobile-toggle" aria-label="Menu"><i class="fa-solid fa-bars text-lg"></i></button>
+        </div>
+        <div class="mobile-menu md:hidden flex-col border-t border-surface-500/50 bg-surface-900" id="mobile-menu">
+            <a href="#/" class="px-6 py-3 text-sm text-muted-300 hover:text-white border-b border-surface-500/30">Home</a>
+            <a href="#/order" class="px-6 py-3 text-sm text-muted-300 hover:text-white border-b border-surface-500/30">Place Order</a>
+            <a href="#/my-orders" class="px-6 py-3 text-sm text-muted-300 hover:text-white border-b border-surface-500/30">My Orders</a>
+            <div id="mobile-auth" class="px-6 py-3 border-b border-surface-500/30"></div>
+        </div>
+    </nav>
+
+    <main class="pt-16 min-h-screen">
+
+        <!-- HOME -->
+        <div id="view-home" class="view active">
+            <section class="relative min-h-[90vh] flex items-center grid-bg overflow-hidden">
+                <div class="glow-blob" style="width:600px;height:600px;top:-200px;right:-100px;"></div>
+                <div class="glow-blob" style="width:400px;height:400px;bottom:-100px;left:-150px;opacity:0.5;"></div>
+                <div class="geo geo-cube" style="top:15%;left:10%;"></div>
+                <div class="geo geo-ring" style="top:25%;right:15%;animation-delay:2s;"></div>
+                <div class="geo geo-diamond" style="bottom:30%;left:20%;animation-delay:4s;"></div>
+                <div class="geo geo-cube" style="top:60%;right:8%;animation-delay:1s;width:25px;height:25px;"></div>
+                <div class="max-w-6xl mx-auto px-4 sm:px-6 py-20 relative z-10">
+                    <div class="max-w-2xl">
+                        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-400/10 border border-brand-400/20 mb-6"><span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse-slow"></span><span class="text-xs font-medium text-brand-400 tracking-wide">Now accepting custom orders</span></div>
+                        <h1 class="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-6">Turn Digital Designs Into<br><span class="text-brand-400">Physical Reality</span></h1>
+                        <p class="text-muted-300 text-lg sm:text-xl leading-relaxed mb-10 max-w-lg">Upload your STL file, tell us what you need. We set the price, you decide — pay only if you want to.</p>
+                        <div class="flex flex-wrap gap-4">
+                            <a href="#/order" class="btn-primary text-base px-8 py-3.5 inline-flex items-center gap-2">Place an Order <i class="fa-solid fa-arrow-right text-sm"></i></a>
+                            <a href="#/my-orders" class="btn-secondary text-base px-8 py-3.5 inline-flex items-center gap-2">My Orders</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="py-24 px-4 sm:px-6"><div class="max-w-6xl mx-auto"><div class="text-center mb-16"><h2 class="font-heading text-3xl sm:text-4xl font-bold mb-4">How It Works</h2><p class="text-muted-400 text-lg max-w-md mx-auto">Simple, transparent, no surprises</p></div>
+                <div class="grid md:grid-cols-4 gap-6">
+                    <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-7 hover:border-brand-400/30 transition-colors group"><div class="w-11 h-11 rounded-xl bg-brand-400/10 flex items-center justify-center mb-4 group-hover:bg-brand-400/20 transition-colors"><i class="fa-solid fa-cloud-arrow-up text-brand-400"></i></div><div class="text-xs font-mono text-muted-500 mb-2">01</div><h3 class="font-heading text-lg font-semibold mb-2">Upload</h3><p class="text-muted-400 text-sm leading-relaxed">Send your STL with print details. No payment needed.</p></div>
+                    <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-7 hover:border-brand-400/30 transition-colors group"><div class="w-11 h-11 rounded-xl bg-brand-400/10 flex items-center justify-center mb-4 group-hover:bg-brand-400/20 transition-colors"><i class="fa-solid fa-tag text-brand-400"></i></div><div class="text-xs font-mono text-muted-500 mb-2">02</div><h3 class="font-heading text-lg font-semibold mb-2">Get Priced</h3><p class="text-muted-400 text-sm leading-relaxed">We review and set a custom price.</p></div>
+                    <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-7 hover:border-brand-400/30 transition-colors group"><div class="w-11 h-11 rounded-xl bg-brand-400/10 flex items-center justify-center mb-4 group-hover:bg-brand-400/20 transition-colors"><i class="fa-solid fa-credit-card text-brand-400"></i></div><div class="text-xs font-mono text-muted-500 mb-2">03</div><h3 class="font-heading text-lg font-semibold mb-2">Accept & Pay</h3><p class="text-muted-400 text-sm leading-relaxed">See the price, accept or decline.</p></div>
+                    <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-7 hover:border-brand-400/30 transition-colors group"><div class="w-11 h-11 rounded-xl bg-brand-400/10 flex items-center justify-center mb-4 group-hover:bg-brand-400/20 transition-colors"><i class="fa-solid fa-print text-brand-400"></i></div><div class="text-xs font-mono text-muted-500 mb-2">04</div><h3 class="font-heading text-lg font-semibold mb-2">Get Printed</h3><p class="text-muted-400 text-sm leading-relaxed">We print and deliver.</p></div>
+                </div>
+            </div></section>
+            <footer class="border-t border-surface-500/30 py-10 px-4 sm:px-6"><div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-md bg-brand-400 flex items-center justify-center"><i class="fa-solid fa-cube text-white text-xs"></i></div><span class="font-heading font-semibold text-sm">Creativity</span></div><p class="text-muted-500 text-xs">Custom 3D printing, done right.</p></div></footer>
+        </div>
+
+        <!-- AUTH -->
+        <div id="view-auth" class="view">
+            <div class="max-w-sm mx-auto px-4 sm:px-6 py-24">
+                <div class="text-center mb-8"><div class="w-14 h-14 rounded-2xl bg-surface-700 border border-surface-500/50 flex items-center justify-center mx-auto mb-5"><i class="fa-solid fa-user text-brand-400 text-lg"></i></div><h1 class="font-heading text-2xl font-bold mb-2" id="auth-title">Create Account</h1><p class="text-muted-400 text-sm" id="auth-subtitle">Sign up to place orders</p></div>
+                <div class="flex rounded-xl bg-surface-700 p-1 mb-6"><button class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all auth-tab active" data-tab="signup" onclick="switchAuthTab('signup')">Sign Up</button><button class="flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-400 transition-all auth-tab" data-tab="login" onclick="switchAuthTab('login')">Log In</button></div>
+                <form id="auth-form" class="space-y-4">
+                    <div id="auth-name-field"><label class="block text-sm font-medium mb-2">Full Name</label><input type="text" class="input-field" id="auth-name" placeholder="John Doe"></div>
+                    <div><label class="block text-sm font-medium mb-2">Email</label><input type="email" class="input-field" id="auth-email" placeholder="you@example.com" required></div>
+                    <div><label class="block text-sm font-medium mb-2">Password</label><input type="password" class="input-field" id="auth-password" placeholder="Min 6 characters" required minlength="6"></div>
+                    <button type="submit" class="btn-primary w-full" id="auth-submit-btn">Create Account</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ORDER FORM -->
+        <div id="view-order" class="view">
+            <div class="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+                <div class="mb-8"><h1 class="font-heading text-3xl font-bold mb-2">Place Your Order</h1><p class="text-muted-400">No payment now. We'll review and set a price.</p></div>
+                <div class="flex items-center gap-2 mb-10" id="step-progress">
+                    <div class="step-indicator flex items-center gap-2" data-step="1"><div class="w-8 h-8 rounded-full bg-brand-400 text-white text-xs font-bold flex items-center justify-center">1</div><span class="text-sm font-medium hidden sm:inline">Details</span></div>
+                    <div class="flex-1 h-px bg-surface-500"></div>
+                    <div class="step-indicator flex items-center gap-2" data-step="2"><div class="w-8 h-8 rounded-full bg-surface-600 text-muted-400 text-xs font-bold flex items-center justify-center">2</div><span class="text-sm font-medium text-muted-400 hidden sm:inline">Print Specs</span></div>
+                </div>
+                <form id="order-form" autocomplete="off">
+                    <div class="step-panel active" data-step="1">
+                        <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-6 sm:p-8 space-y-5">
+                            <h2 class="font-heading text-xl font-semibold mb-1">Your Information</h2>
+                            <p class="text-muted-400 text-sm mb-4">Phone is optional, everything else is filled from your account.</p>
+                            <div><label class="block text-sm font-medium mb-2">Phone <span class="text-muted-500 text-xs">(optional)</span></label><input type="tel" class="input-field" id="cust-phone" placeholder="(555) 123-4567"></div>
+                        </div>
+                        <div class="flex justify-end mt-6"><button type="button" class="btn-primary" onclick="nextStep(2)">Continue <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button></div>
+                    </div>
+                    <div class="step-panel" data-step="2">
+                        <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-6 sm:p-8 space-y-6">
+                            <div><h2 class="font-heading text-xl font-semibold mb-1">Print Specifications</h2><p class="text-muted-400 text-sm">Tell us what you need printed.</p></div>
+                            <div><label class="block text-sm font-medium mb-2">Description <span class="text-brand-400">*</span></label><textarea class="input-field" id="order-desc" rows="3" placeholder="Describe what this part is for..." required></textarea></div>
+                            <div><label class="block text-sm font-medium mb-2">STL File <span class="text-brand-400">*</span></label><div class="upload-zone" id="upload-zone"><i class="fa-solid fa-cloud-arrow-up text-2xl text-muted-400 mb-3"></i><p class="text-sm text-muted-300 mb-1">Drag & drop your STL file here</p><p class="text-xs text-muted-500">or click to browse — max 5MB</p><input type="file" accept=".stl" id="stl-input" class="hidden"></div><div id="file-info" class="hidden mt-3 flex items-center gap-3 p-3 bg-surface-700 rounded-lg"><i class="fa-solid fa-file-code text-brand-400"></i><span class="text-sm flex-1 truncate" id="file-name"></span><button type="button" class="text-muted-400 hover:text-red-400 transition-colors" id="remove-file"><i class="fa-solid fa-xmark"></i></button></div></div>
+                            <div id="stl-preview-wrap" class="hidden"><label class="block text-sm font-medium mb-2">3D Preview</label><div class="stl-container" id="stl-preview-canvas"></div><p class="text-xs text-muted-500 mt-1">Drag to rotate, scroll to zoom.</p></div>
+                            <div><label class="block text-sm font-medium mb-3">Filament Color</label><div class="flex flex-wrap gap-3" id="color-picker"><div class="color-swatch selected" data-color="White" style="background:#F5F5F5;" title="White"></div><div class="color-swatch" data-color="Black" style="background:#1A1A1A;border-color:#3A3A40;" title="Black"></div><div class="color-swatch" data-color="Red" style="background:#DC2626;" title="Red"></div><div class="color-swatch" data-color="Orange" style="background:#FF6B35;" title="Orange"></div><div class="color-swatch" data-color="Yellow" style="background:#FBBF24;" title="Yellow"></div><div class="color-swatch" data-color="Green" style="background:#22C55E;" title="Green"></div><div class="color-swatch" data-color="Blue" style="background:#3B82F6;" title="Blue"></div><div class="color-swatch" data-color="Purple" style="background:#A855F7;" title="Purple"></div><div class="color-swatch" data-color="Gray" style="background:#6B7280;" title="Gray"></div><div class="color-swatch" data-color="Silver" style="background:#C0C0C0;" title="Silver"></div><div class="color-swatch" data-color="Gold" style="background:#D4A017;" title="Gold"></div><div class="color-swatch" data-color="Pink" style="background:#EC4899;" title="Pink"></div></div><input type="hidden" id="order-color" value="White"></div>
+                            <div><label class="block text-sm font-medium mb-2">Material</label><select class="input-field" id="order-material"><option value="PLA">PLA — Standard, great detail</option><option value="PETG">PETG — Stronger, heat resistant</option><option value="ABS">ABS — Durable, heat resistant</option><option value="TPU">TPU — Flexible, rubber-like</option></select></div>
+                            <div><label class="block text-sm font-medium mb-2">Quantity</label><div class="flex items-center gap-3"><button type="button" class="w-10 h-10 rounded-lg bg-surface-600 text-white flex items-center justify-center hover:bg-surface-500 transition-colors" id="qty-minus"><i class="fa-solid fa-minus text-xs"></i></button><input type="number" class="input-field w-20 text-center" id="order-qty" value="1" min="1" max="100"><button type="button" class="w-10 h-10 rounded-lg bg-surface-600 text-white flex items-center justify-center hover:bg-surface-500 transition-colors" id="qty-plus"><i class="fa-solid fa-plus text-xs"></i></button></div></div>
+                            <div><label class="block text-sm font-medium mb-2">Special Notes <span class="text-muted-500 text-xs">(optional)</span></label><textarea class="input-field" id="order-notes" rows="2" placeholder="Infill percentage, orientation, etc."></textarea></div>
+                        </div>
+                        <div class="flex justify-between mt-6"><button type="button" class="btn-secondary" onclick="prevStep(1)"><i class="fa-solid fa-arrow-left text-xs mr-1"></i> Back</button><button type="submit" class="btn-primary" id="submit-order-btn"><i class="fa-solid fa-paper-plane text-xs mr-1"></i> Submit Order</button></div>
+                    </div>
+                </form>
+                <div id="order-confirmation" class="hidden">
+                    <div class="bg-surface-800 border border-surface-500/50 rounded-2xl p-8 sm:p-10 text-center">
+                        <div class="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-6"><i class="fa-solid fa-check text-green-400 text-2xl"></i></div>
+                        <h2 class="font-heading text-2xl font-bold mb-3">Order Submitted</h2>
+                        <p class="text-muted-400 mb-6">We'll review and set a price. Check My Orders to see when it's ready.</p>
+                        <div class="flex flex-wrap justify-center gap-3"><a href="#/my-orders" class="btn-primary inline-flex items-center gap-2"><i class="fa-solid fa-box text-xs"></i> My Orders</a><a href="#/" class="btn-secondary">Home</a></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MY ORDERS -->
+        <div id="view-my-orders" class="view">
+            <div class="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+                <div class="flex items-center justify-between mb-8"><div><h1 class="font-heading text-3xl font-bold mb-1">My Orders</h1><p class="text-muted-400 text-sm" id="my-orders-subtitle"></p></div></div>
+                <div id="my-orders-empty" class="hidden text-center py-16"><i class="fa-solid fa-box-open text-4xl text-muted-500 mb-4 block"></i><p class="text-muted-400 mb-4">No orders yet.</p><a href="#/order" class="btn-primary inline-flex items-center gap-2"><i class="fa-solid fa-plus text-xs"></i> Place Your First Order</a></div>
+                <div id="my-orders-list" class="hidden space-y-6"></div>
+            </div>
+        </div>
+
+        <!-- PAYMENT MODAL -->
+        <div class="modal-overlay" id="payment-modal">
+            <div class="modal-content bg-surface-800 border border-surface-500/50 rounded-2xl w-full max-w-md p-6 sm:p-8">
+                <div class="flex items-center justify-between mb-6"><h2 class="font-heading text-xl font-bold">Complete Payment</h2><button class="text-muted-400 hover:text-white transition-colors p-1" onclick="closePaymentModal()"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+                <p class="text-muted-400 text-sm mb-1">You're paying for:</p><p class="font-medium text-sm mb-4" id="pay-modal-desc"></p>
+                <div class="price-highlight p-5 mb-6 text-center"><div class="text-sm text-muted-300 mb-1">Total</div><div class="font-heading text-3xl font-bold text-brand-400" id="pay-modal-price"></div></div>
+                <div class="card-preview mx-auto mb-6" id="card-preview"><div class="flex justify-between items-start mb-8 relative z-10"><span class="font-heading font-bold text-sm tracking-wider opacity-80">CREATIVITY</span><i class="fa-brands fa-cc-visa text-xl text-muted-300"></i></div><div class="font-mono text-lg tracking-[0.2em] mb-6 relative z-10" id="card-num-display">•••• •••• •••• ••••</div><div class="flex justify-between items-end relative z-10"><div><div class="text-[10px] text-muted-400 uppercase tracking-wider mb-1">Card Holder</div><div class="text-sm font-medium" id="card-name-display">YOUR NAME</div></div><div><div class="text-[10px] text-muted-400 uppercase tracking-wider mb-1">Expires</div><div class="text-sm font-medium" id="card-exp-display">MM/YY</div></div></div></div>
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 mb-5"><i class="fa-solid fa-circle-info text-yellow-400 text-sm"></i><p class="text-xs text-yellow-300/80">Demo mode — no real payments processed.</p></div>
+                <div class="space-y-4"><div><label class="block text-sm font-medium mb-2">Card Number</label><input type="text" class="input-field font-mono tracking-wider" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19" inputmode="numeric"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-2">Expiry</label><input type="text" class="input-field font-mono" id="card-expiry" placeholder="MM/YY" maxlength="5" inputmode="numeric"></div><div><label class="block text-sm font-medium mb-2">CVV</label><input type="text" class="input-field font-mono" id="card-cvv" placeholder="123" maxlength="4" inputmode="numeric"></div></div><div><label class="block text-sm font-medium mb-2">Name on Card</label><input type="text" class="input-field" id="card-name" placeholder="John Doe"></div></div>
+                <button class="btn-success-solid w-full mt-6 py-4 text-base" id="pay-submit-btn" onclick="processPayment()"><i class="fa-solid fa-lock text-xs mr-2"></i> Pay Now</button>
+            </div>
+        </div>
+
+        <!-- DECLINE MODAL -->
+        <div class="modal-overlay" id="decline-modal">
+            <div class="modal-content bg-surface-800 border border-surface-500/50 rounded-2xl w-full max-w-md p-6 sm:p-8 text-center">
+                <div class="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-5"><i class="fa-solid fa-triangle-exclamation text-red-400 text-xl"></i></div>
+                <h2 class="font-heading text-xl font-bold mb-3">Cancel This Order?</h2><p class="text-muted-400 text-sm mb-6">This will permanently delete your order. No payment was made.</p>
+                <div class="flex gap-3 justify-center"><button class="btn-secondary" onclick="closeDeclineModal()">Keep Order</button><button class="btn-danger-solid" onclick="confirmDecline()">Yes, Cancel</button></div>
+            </div>
+        </div>
+
+        <!-- ADMIN LOGIN -->
+        <div id="view-admin" class="view">
+            <div class="max-w-sm mx-auto px-4 sm:px-6 py-24">
+                <div class="text-center mb-8"><div class="w-14 h-14 rounded-2xl bg-surface-700 border border-surface-500/50 flex items-center justify-center mx-auto mb-5"><i class="fa-solid fa-shield-halved text-brand-400 text-lg"></i></div><h1 class="font-heading text-2xl font-bold mb-2">Admin Access</h1><p class="text-muted-400 text-sm">Enter your credentials.</p></div>
+                <form id="admin-login-form" class="space-y-4"><input type="text" class="input-field" id="admin-user" placeholder="Username" required><input type="password" class="input-field" id="admin-pass" placeholder="Password" required><button type="submit" class="btn-primary w-full">Sign In</button></form>
+            </div>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div id="view-dashboard" class="view">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+                <div class="flex items-center justify-between mb-8 flex-wrap gap-4"><div><h1 class="font-heading text-2xl sm:text-3xl font-bold">Dashboard</h1><p class="text-muted-400 text-sm mt-1">Manage orders, set prices, download files.</p></div><button class="btn-secondary text-sm" onclick="adminLogout()"><i class="fa-solid fa-right-from-bracket text-xs mr-1"></i> Sign Out</button></div>
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8" id="dash-stats"></div>
+                <div class="flex flex-wrap gap-2 mb-6" id="dash-filters">
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-brand-400 text-white font-semibold transition-all" data-filter="all">All</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="pending">Need Price</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="priced">Awaiting Pay</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="paid">Paid</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="printing">Printing</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="completed">Completed</button>
+                    <button class="filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all" data-filter="rejected">Rejected</button>
+                </div>
+                <div class="bg-surface-800 border border-surface-500/50 rounded-2xl overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-surface-500/50 text-left"><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">Order</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">Customer</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">File</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">Date</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">Status</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider">Price</th><th class="px-5 py-4 font-semibold text-muted-400 text-xs uppercase tracking-wider text-right">Actions</th></tr></thead><tbody id="dash-orders-body"></tbody></table></div><div id="dash-empty" class="hidden text-center py-16 text-muted-500"><i class="fa-solid fa-inbox text-3xl mb-3 block"></i><p class="mb-1">No orders yet</p></div></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ADMIN ORDER MODAL -->
+    <div class="modal-overlay" id="order-modal">
+        <div class="modal-content bg-surface-800 border border-surface-500/50 rounded-2xl w-full max-w-3xl p-6 sm:p-8">
+            <div class="flex items-center justify-between mb-6"><h2 class="font-heading text-xl font-bold" id="modal-order-id"></h2><button class="text-muted-400 hover:text-white transition-colors p-1" onclick="closeModal()"><i class="fa-solid fa-xmark text-lg"></i></button></div>
+            <div class="grid lg:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="bg-surface-700 rounded-xl p-4 space-y-3"><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider">Customer</h3><div class="text-sm"><span class="text-muted-400">Name:</span> <span id="modal-name"></span></div><div class="text-sm"><span class="text-muted-400">Email:</span> <span id="modal-email"></span></div><div class="text-sm"><span class="text-muted-400">Phone:</span> <span id="modal-phone"></span></div><div class="text-sm"><span class="text-muted-400">Account:</span> <span id="modal-account-age"></span></div></div>
+                    <div class="bg-surface-700 rounded-xl p-4 space-y-3"><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider">Print Details</h3><div class="text-sm"><span class="text-muted-400">Description:</span> <span id="modal-desc"></span></div><div class="text-sm"><span class="text-muted-400">File:</span> <span id="modal-file" class="text-brand-400"></span></div><div class="text-sm"><span class="text-muted-400">Material:</span> <span id="modal-material"></span></div><div class="text-sm"><span class="text-muted-400">Color:</span> <span id="modal-color"></span></div><div class="text-sm"><span class="text-muted-400">Quantity:</span> <span id="modal-qty"></span></div><div class="text-sm hidden" id="modal-notes-wrap"><span class="text-muted-400">Notes:</span> <span id="modal-notes"></span></div></div>
+                    <div class="bg-surface-700 rounded-xl p-4 space-y-2"><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider">Payment</h3><div class="text-sm" id="modal-pay-info"></div></div>
+                </div>
+                <div class="space-y-4">
+                    <div><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider mb-2">3D Preview</h3><div class="stl-container" id="modal-stl-preview"></div></div>
+                    <div class="bg-surface-700 rounded-xl p-4 space-y-3" id="modal-price-section"><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider">Set Price</h3><div class="flex gap-3"><div class="relative flex-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-400 text-sm">$</span><input type="number" class="input-field pl-7" id="modal-price-input" placeholder="0.00" min="0" step="0.01"></div><button class="btn-secondary text-sm" onclick="setPrice()">Set Price</button></div></div>
+                    <div class="bg-surface-700 rounded-xl p-4 space-y-3"><h3 class="font-heading font-semibold text-sm text-muted-300 uppercase tracking-wider">Actions</h3><div class="flex gap-2" id="modal-status-display"></div><div class="flex flex-wrap gap-2" id="modal-actions"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed top-20 right-4 z-[200] flex flex-col gap-2"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        /* ===== ADMIN HASH — generated from "CreativityAdmin#2025!Secure" via SHA-256 ===== */
+        /* To change your admin password: go to https://emn178.github.io/online-tools/sha256.html */
+        /* Type your new password, copy the hash, and paste it below replacing this string */
+        const ADMIN_HASH = '54419dfe123e6d9144c644330b0ff47e6519ae10657f7739118b337aa841fbbd'; // SHA-256 of your chosen password
+        const ADMIN_SALT = 'CRP_SALTY'; // Change this too when deploying
+        const STORAGE_ORDERS = 'creativity_orders';
+        const STORAGE_USERS = 'creativity_users';
+        const SESSION_AUTH = 'creativity_auth';
+        const SESSION_ADMIN = 'creativity_admin';
+        const SESSION_FILES = 'creativity_files';
+        const STATUS_LABELS = { pending:'Pending Review', priced:'Price Ready', paid:'Paid', printing:'Printing', completed:'Completed', rejected:'Rejected' };
+
+        let orders=[], currentUser=null, isAdmin=false, currentFilter='all', selectedOrder=null, payingOrderId=null, decliningOrderId=null;
+        let uploadedFile=null, selectedColor='White', currentStep=1, stlViewerInstances=[], authMode='signup';
+
+        function genId(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let id='CRT-'; for(let i=0;i<6;i++) id+=c[Math.floor(Math.random()*c.length)]; return id; }
+        function formatDate(ts){ return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+        function fileToBase64(f){ return new Promise((r,e)=>{ const rd=new FileReader(); rd.onload=()=>r(rd.result.split(',')[1]); rd.onerror=e; rd.readAsDataURL(f); }); }
+        async function sha256(msg){ const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+        function getBrowserInfo(){ const ua=navigator.userAgent; let browser='Unknown'; if(ua.includes('Chrome')&&!ua.includes('Edg')) browser='Chrome'; else if(ua.includes('Firefox')) browser='Firefox'; else if(ua.includes('Safari')&&!ua.includes('Chrome')) browser='Safari'; else if(ua.includes('Edg')) browser='Edge'; let os='Unknown'; if(ua.includes('Windows')) os='Windows'; else if(ua.includes('Mac')) os='macOS'; else if(ua.includes('Linux')) os='Linux'; else if(ua.includes('Android')) os='Android'; else if(ua.includes('iPhone')||ua.includes('iPad')) os='iOS'; return {browser,os,screen:`${screen.width}x${screen.height}`,language:navigator.language||'unknown'}; }
+
+        function toast(msg,type='info'){
+            const colors={success:'border-green-500/30 bg-green-500/10',error:'border-red-500/30 bg-red-500/10',info:'border-blue-500/30 bg-blue-500/10',warning:'border-yellow-500/30 bg-yellow-500/10'};
+            const icons={success:'fa-check-circle text-green-400',error:'fa-circle-xmark text-red-400',info:'fa-circle-info text-blue-400',warning:'fa-triangle-exclamation text-yellow-400'};
+            const el=document.createElement('div'); el.className=`toast border ${colors[type]} rounded-xl px-4 py-3 flex items-center gap-3 min-w-[280px]`;
+            el.innerHTML=`<i class="fa-solid ${icons[type]}"></i><span class="text-sm">${msg}</span>`; document.getElementById('toast-container').appendChild(el); setTimeout(()=>el.remove(),4000);
+        }
+
+        function loadOrders(){ try{ orders=JSON.parse(localStorage.getItem(STORAGE_ORDERS))||[]; }catch{ orders=[]; } }
+        function saveOrders(){ try{ localStorage.setItem(STORAGE_ORDERS,JSON.stringify(orders)); }catch{ toast('Storage full','error'); } }
+        function loadUsers(){ try{ return JSON.parse(localStorage.getItem(STORAGE_USERS))||{}; }catch{ return {}; } }
+        function saveUsers(u){ try{ localStorage.setItem(STORAGE_USERS,JSON.stringify(u)); }catch{} }
+        function getSessionFiles(){ try{ return JSON.parse(sessionStorage.getItem(SESSION_FILES))||{}; }catch{ return {}; } }
+        function saveSessionFile(id,b64){ const f=getSessionFiles(); f[id]=b64; try{ sessionStorage.setItem(SESSION_FILES,JSON.stringify(f)); }catch{ const k=Object.keys(f); if(k.length>1){delete f[k[0]];sessionStorage.setItem(SESSION_FILES,JSON.stringify(f));} } }
+
+        /* Router */
+        function navigate(r){ window.location.hash='#'+r; }
+        function getRoute(){ return (window.location.hash||'#/').replace('#','')||'/'; }
+        function router(){
+            const route=getRoute();
+            document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+            document.getElementById('mobile-menu').classList.remove('open');
+            // Protected routes
+            if(['/order','/my-orders'].includes(route) && !currentUser){ navigate('/auth'); updateNav(); return; }
+            if(route==='/dashboard' && !isAdmin){ navigate('/admin'); updateNav(); return; }
+            if(route==='/admin' && isAdmin){ navigate('/dashboard'); updateNav(); return; }
+            if(route==='/') document.getElementById('view-home').classList.add('active');
+            else if(route==='/auth') document.getElementById('view-auth').classList.add('active');
+            else if(route==='/order'){ document.getElementById('order-form').classList.remove('hidden'); document.getElementById('step-progress').classList.remove('hidden'); document.getElementById('order-confirmation').classList.add('hidden'); document.getElementById('view-order').classList.add('active'); }
+            else if(route==='/my-orders'){ document.getElementById('view-my-orders').classList.add('active'); renderMyOrders(); }
+            else if(route==='/admin') document.getElementById('view-admin').classList.add('active');
+            else if(route==='/dashboard'){ document.getElementById('view-dashboard').classList.add('active'); renderDashboard(); }
+            else document.getElementById('view-home').classList.add('active');
+            stlViewerInstances.forEach(v=>v.dispose()); stlViewerInstances=[]; window.scrollTo(0,0); updateNav();
+        }
+        window.addEventListener('hashchange',router);
+
+        /* Nav */
+        function updateNav(){
+            const authEl=document.getElementById('nav-auth'), mobAuth=document.getElementById('mobile-auth');
+            let html='';
+            if(isAdmin){
+                html=`<a href="#/dashboard" class="text-sm text-brand-400 hover:text-brand-500 transition-colors font-medium"><i class="fa-solid fa-gauge text-xs mr-1"></i>Dashboard</a>`;
+            } else if(currentUser){
+                const initials=currentUser.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+                html=`<div class="flex items-center gap-3"><a href="#/my-orders" class="text-sm text-muted-300 hover:text-white transition-colors">My Orders</a><div class="flex items-center gap-2 cursor-pointer group" onclick="logoutUser()"><div class="avatar-circle bg-brand-400/20 text-brand-400 text-xs">${initials}</div><span class="text-sm text-muted-300 group-hover:text-white transition-colors hidden sm:inline">${currentUser.name.split(' ')[0]}</span></div></div>`;
+            } else {
+                html=`<a href="#/auth" class="text-sm text-brand-400 hover:text-brand-500 transition-colors font-medium">Sign Up</a>`;
+            }
+            authEl.innerHTML=html; mobAuth.innerHTML=html;
+        }
+
+        /* STL Viewer */
+        class STLViewer{
+            constructor(c,s){this.container=c;this.disposed=false;this.init(s);}
+            async init(source){
+                try{
+                    let blobUrl;
+                    if(source instanceof File) blobUrl=URL.createObjectURL(source);
+                    else if(typeof source==='string'){const bs=atob(source);const ab=new ArrayBuffer(bs.length);const ia=new Uint8Array(ab);for(let i=0;i<bs.length;i++)ia[i]=bs.charCodeAt(i);blobUrl=URL.createObjectURL(new Blob([ab]));}
+                    else return;
+                    const w=this.container.clientWidth||400,h=this.container.clientHeight||300;
+                    this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x111113);
+                    this.camera=new THREE.PerspectiveCamera(45,w/h,0.1,10000);
+                    this.renderer=new THREE.WebGLRenderer({antialias:true});this.renderer.setSize(w,h);this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+                    this.container.innerHTML='';this.container.appendChild(this.renderer.domElement);
+                    this.scene.add(new THREE.AmbientLight(0xffffff,0.5));
+                    const d1=new THREE.DirectionalLight(0xffffff,1);d1.position.set(5,10,7);this.scene.add(d1);
+                    const d2=new THREE.DirectionalLight(0xff6b35,0.3);d2.position.set(-5,-3,-5);this.scene.add(d2);
+                    this.scene.add(new THREE.GridHelper(200,20,0x2a2a2e,0x1a1a1d));
+                    this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=0.08;
+                    const geo=await new Promise((r,e)=>new STLLoader().load(blobUrl,r,undefined,e));URL.revokeObjectURL(blobUrl);
+                    geo.computeVertexNormals();this.scene.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0xff6b35,metalness:0.2,roughness:0.6})));
+                    geo.computeBoundingBox();const box=geo.boundingBox,center=new THREE.Vector3(),size=new THREE.Vector3();
+                    box.getCenter(center);box.getSize(size);
+                    const cz=Math.max(Math.abs(Math.max(size.x,size.y,size.z)/2/Math.tan(this.camera.fov*Math.PI/360))*1.8,5);
+                    this.camera.position.set(center.x+cz*0.5,center.y+cz*0.4,center.z+cz);this.controls.target.copy(center);this.controls.update();this._animate();
+                }catch{this.container.innerHTML='<div class="flex items-center justify-center h-full text-muted-500 text-sm"><p>Could not render preview</p></div>';}
+            }
+            _animate(){if(this.disposed)return;requestAnimationFrame(()=>this._animate());this.controls.update();this.renderer.render(this.scene,this.camera);}
+            dispose(){this.disposed=true;if(this.renderer){this.renderer.dispose();if(this.renderer.domElement?.parentNode)this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);}if(this.controls)this.controls.dispose();}
+        }
+
+        /* Auth */
+        window.switchAuthTab=function(tab){
+            authMode=tab;
+            document.querySelectorAll('.auth-tab').forEach(t=>{if(t.dataset.tab===tab){t.className='flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all auth-tab active bg-brand-400 text-white';}else{t.className='flex-1 py-2.5 rounded-lg text-sm font-medium text-muted-400 transition-all auth-tab';}});
+            const nf=document.getElementById('auth-name-field'),title=document.getElementById('auth-title'),sub=document.getElementById('auth-subtitle'),btn=document.getElementById('auth-submit-btn');
+            if(tab==='signup'){nf.style.display='';title.textContent='Create Account';sub.textContent='Sign up to place orders';btn.textContent='Create Account';}
+            else{nf.style.display='none';title.textContent='Log In';sub.textContent='Welcome back';btn.textContent='Log In';}
+        };
+
+        function setupAuth(){
+            document.getElementById('auth-form').addEventListener('submit',async(e)=>{
+                e.preventDefault();
+                const email=document.getElementById('auth-email').value.trim().toLowerCase();
+                const pass=document.getElementById('auth-password').value;
+                if(!email||!email.includes('@')){toast('Enter a valid email','warning');return;}
+                if(pass.length<6){toast('Password must be at least 6 characters','warning');return;}
+                const users=loadUsers();
+                if(authMode==='signup'){
+                    if(users[email]){toast('An account with that email already exists','warning');return;}
+                    const name=document.getElementById('auth-name').value.trim();
+                    if(!name){toast('Enter your name','warning');return;}
+                    const hash=await sha256(pass);
+                    users[email]={name,email,passwordHash:hash,createdAt:Date.now()};
+                    saveUsers(users);
+                    currentUser=users[email]; sessionStorage.setItem(SESSION_AUTH,email);
+                    toast('Account created!','success'); navigate('/');
+                } else {
+                    if(!users[email]){toast('No account found with that email','error');return;}
+                    const hash=await sha256(pass);
+                    if(hash!==users[email].passwordHash){toast('Incorrect password','error');return;}
+                    currentUser=users[email]; sessionStorage.setItem(SESSION_AUTH,email);
+                    toast('Welcome back!','success'); navigate('/');
+                }
+            });
+        }
+
+        window.logoutUser=function(){ currentUser=null; sessionStorage.removeItem(SESSION_AUTH); navigate('/'); toast('Signed out','info'); };
+
+        /* Form steps */
+        window.nextStep=function(step){ currentStep=step; updateStepUI(); };
+        window.prevStep=function(step){ currentStep=step; updateStepUI(); };
+        function updateStepUI(){
+            document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
+            document.querySelector(`.step-panel[data-step="${currentStep}"]`).classList.add('active');
+            document.querySelectorAll('.step-indicator').forEach(ind=>{const s=parseInt(ind.dataset.step),c=ind.querySelector('div'),l=ind.querySelector('span');c.className=`w-8 h-8 rounded-full ${s<=currentStep?'bg-brand-400 text-white':'bg-surface-600 text-muted-400'} text-xs font-bold flex items-center justify-center`;if(l)l.className=`text-sm font-medium hidden sm:inline ${s<=currentStep?'':'text-muted-400'}`;});
+        }
+
+        /* Upload */
+        function setupUpload(){
+            const zone=document.getElementById('upload-zone'),input=document.getElementById('stl-input'),info=document.getElementById('file-info'),fname=document.getElementById('file-name'),rm=document.getElementById('remove-file'),pw=document.getElementById('stl-preview-wrap'),pc=document.getElementById('stl-preview-canvas');
+            zone.addEventListener('click',()=>input.click());
+            zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover');});
+            zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+            zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0]);});
+            input.addEventListener('change',()=>{if(input.files.length)handleFile(input.files[0]);});
+            rm.addEventListener('click',()=>{uploadedFile=null;input.value='';info.classList.add('hidden');zone.classList.remove('has-file');pw.classList.add('hidden');pc.innerHTML='';stlViewerInstances.forEach(v=>v.dispose());stlViewerInstances=[];});
+            function handleFile(file){if(!file.name.toLowerCase().endsWith('.stl')){toast('Please upload an STL file','error');return;}if(file.size>5*1024*1024){toast('File too large — max 5MB','error');return;}uploadedFile=file;fname.textContent=file.name;info.classList.remove('hidden');zone.classList.add('has-file');pw.classList.remove('hidden');stlViewerInstances.push(new STLViewer(pc,file));}
+        }
+        function setupColorPicker(){document.getElementById('color-picker').addEventListener('click',e=>{const s=e.target.closest('.color-swatch');if(!s)return;document.querySelectorAll('.color-swatch').forEach(x=>x.classList.remove('selected'));s.classList.add('selected');selectedColor=s.dataset.color;document.getElementById('order-color').value=selectedColor;});}
+        function setupQtyControls(){const inp=document.getElementById('order-qty');document.getElementById('qty-minus').addEventListener('click',()=>{inp.value=Math.max(1,parseInt(inp.value||1)-1);});document.getElementById('qty-plus').addEventListener('click',()=>{inp.value=Math.min(100,parseInt(inp.value||1)+1);});}
+        function setupCardInputs(){
+            const ni=document.getElementById('card-number'),ei=document.getElementById('card-expiry'),nm=document.getElementById('card-name');
+            ni.addEventListener('input',()=>{let v=ni.value.replace(/\D/g,'').substring(0,16);ni.value=v.replace(/(.{4})/g,'$1 ').trim();const d=document.getElementById('card-num-display');if(!v.length)d.textContent='•••• •••• •••• ••••';else if(v.length<=4)d.textContent=v.padEnd(4,'•')+' •••• •••• ••••';else if(v.length<=8)d.textContent=v.substring(0,4)+' '+v.substring(4).padEnd(4,'•')+' •••• ••••';else if(v.length<=12)d.textContent=v.substring(0,4)+' '+v.substring(4,8)+' '+v.substring(8).padEnd(4,'•')+' ••••';else d.textContent=v.substring(0,4)+' '+v.substring(4,8)+' '+v.substring(8,12)+' '+v.substring(12).padEnd(4,'•');});
+            ei.addEventListener('input',()=>{let v=ei.value.replace(/\D/g,'').substring(0,4);if(v.length>=3)v=v.substring(0,2)+'/'+v.substring(2);ei.value=v;document.getElementById('card-exp-display').textContent=v||'MM/YY';});
+            nm.addEventListener('input',()=>{document.getElementById('card-name-display').textContent=nm.value.toUpperCase()||'YOUR NAME';});
+        }
+
+        /* Submit order */
+        function setupOrderForm(){
+            document.getElementById('order-form').addEventListener('submit',async(e)=>{
+                e.preventDefault();
+                if(!document.getElementById('order-desc').value.trim()){toast('Please add a description','warning');return;}
+                if(!uploadedFile){toast('Please upload an STL file','warning');return;}
+                const btn=document.getElementById('submit-order-btn');btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin text-xs mr-1"></i> Submitting...';
+                await new Promise(r=>setTimeout(r,1000));
+                const orderId=genId();let base64=null;if(uploadedFile){try{base64=await fileToBase64(uploadedFile);}catch{}}
+                const order={id:orderId,customerName:currentUser.name,customerEmail:currentUser.email,customerPhone:document.getElementById('cust-phone').value.trim(),description:document.getElementById('order-desc').value.trim(),stlFileName:uploadedFile?uploadedFile.name:'Unknown',stlBase64:base64,color:selectedColor,material:document.getElementById('order-material').value,quantity:parseInt(document.getElementById('order-qty').value)||1,notes:document.getElementById('order-notes').value.trim(),status:'pending',price:null,browserInfo:getBrowserInfo(),createdAt:Date.now(),updatedAt:Date.now()};
+                orders.unshift(order);saveOrders();if(base64)saveSessionFile(orderId,base64);
+                document.getElementById('order-form').classList.add('hidden');document.getElementById('step-progress').classList.add('hidden');document.getElementById('order-confirmation').classList.remove('hidden');
+                btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane text-xs mr-1"></i> Submit Order';
+                currentStep=1;uploadedFile=null;selectedColor='White';document.getElementById('order-form').reset();
+                document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));document.querySelector('.color-swatch[data-color="White"]').classList.add('selected');
+                document.getElementById('file-info').classList.add('hidden');document.getElementById('upload-zone').classList.remove('has-file');document.getElementById('stl-preview-wrap').classList.add('hidden');document.getElementById('stl-preview-canvas').innerHTML='';
+                updateStepUI();toast("Order submitted! Check My Orders to see when it's priced.",'success');
+            });
+        }
+
+        /* My Orders */
+        function renderMyOrders(){
+            if(!currentUser)return;
+            const myOrders=orders.filter(o=>o.customerEmail===currentUser.email);
+            document.getElementById('my-orders-subtitle').textContent=`Showing orders for ${currentUser.email}`;
+            if(!myOrders.length){document.getElementById('my-orders-empty').classList.remove('hidden');document.getElementById('my-orders-list').classList.add('hidden');return;}
+            document.getElementById('my-orders-empty').classList.add('hidden');
+            const list=document.getElementById('my-orders-list');list.innerHTML='';
+            const active=myOrders.filter(o=>!['completed','rejected'].includes(o.status));
+            const past=myOrders.filter(o=>['completed','rejected'].includes(o.status));
+            if(active.length){const s=document.createElement('div');s.innerHTML=`<h2 class="font-heading text-lg font-semibold mb-4 flex items-center gap-2"><i class="fa-solid fa-clock text-brand-400 text-sm"></i>Active Orders <span class="text-xs font-normal text-muted-400">(${active.length})</span></h2>`;active.forEach(o=>s.appendChild(buildOrderCard(o)));list.appendChild(s);}
+            if(past.length){const s=document.createElement('div');s.innerHTML=`<h2 class="font-heading text-lg font-semibold mb-4 flex items-center gap-2 text-muted-400"><i class="fa-solid fa-box-archive text-sm"></i>Past Orders <span class="text-xs font-normal">(${past.length})</span></h2>`;past.forEach(o=>s.appendChild(buildOrderCard(o)));list.appendChild(s);}
+            document.getElementById('my-orders-list').classList.remove('hidden');
+        }
+
+        function buildOrderCard(o){
+            const card=document.createElement('div');card.className='order-card';
+            let inner=`<div class="order-card-inner"><div class="flex items-start justify-between mb-4 flex-wrap gap-2"><div><div class="font-mono text-xs text-muted-500 mb-1">${o.id}</div><div class="font-medium">${o.description.length>60?o.description.substring(0,60)+'...':o.description}</div></div><span class="badge badge-${o.status}">${STATUS_LABELS[o.status]}</span></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-4"><div><span class="text-muted-500 text-xs block">File</span><span class="text-brand-400 text-xs truncate block">${o.stlFileName}</span></div><div><span class="text-muted-500 text-xs block">Material</span><span class="text-xs">${o.material}</span></div><div><span class="text-muted-500 text-xs block">Color</span><span class="text-xs">${o.color}</span></div><div><span class="text-muted-500 text-xs block">Qty</span><span class="text-xs">${o.quantity}</span></div></div>`;
+            if(o.status==='priced') inner+=`<div class="price-highlight p-4 mb-4 text-center"><div class="text-xs text-muted-300 mb-1">Your price</div><div class="font-heading text-2xl font-bold text-brand-400">$${o.price.toFixed(2)}</div></div><div class="flex gap-3"><button class="btn-success-solid flex-1 py-3 text-sm" onclick="openPaymentModal('${o.id}')"><i class="fa-solid fa-check mr-1"></i>Accept & Pay</button><button class="btn-danger-solid flex-1 py-3 text-sm" onclick="openDeclineModal('${o.id}')"><i class="fa-solid fa-xmark mr-1"></i>Decline</button></div>`;
+            else if(o.status==='pending') inner+=`<div class="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20"><i class="fa-solid fa-clock text-yellow-400 text-sm"></i><p class="text-xs text-yellow-300/80">We're reviewing your order.</p></div>`;
+            else if(o.status==='paid') inner+=`<div class="flex items-center gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20"><i class="fa-solid fa-circle-check text-green-400 text-sm"></i><p class="text-xs text-green-300/80">Paid $${o.price.toFixed(2)}. Printing soon.</p></div>`;
+            else if(o.status==='printing') inner+=`<div class="flex items-center gap-3 p-3 rounded-lg bg-brand-400/10 border border-brand-400/20"><i class="fa-solid fa-print text-brand-400 text-sm"></i><p class="text-xs text-brand-300/80">Your print is being made.</p></div>`;
+            else if(o.status==='completed') inner+=`<div class="flex items-center gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20"><i class="fa-solid fa-flag-checkered text-green-400 text-sm"></i><p class="text-xs text-green-300/80">Ready! Paid $${o.price.toFixed(2)}.</p></div>`;
+            else if(o.status==='rejected') inner+=`<div class="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20"><i class="fa-solid fa-ban text-red-400 text-sm"></i><p class="text-xs text-red-300/80">Rejected. No payment made.</p></div>`;
+            inner+=`<div class="text-xs text-muted-500 mt-3">${formatDate(o.createdAt)}</div></div>`;
+            card.innerHTML=inner;return card;
+        }
+
+        /* Payment modal */
+        window.openPaymentModal=function(id){payingOrderId=id;const o=orders.find(x=>x.id===id);if(!o)return;document.getElementById('pay-modal-desc').textContent=o.description;document.getElementById('pay-modal-price').textContent='$'+o.price.toFixed(2);document.getElementById('card-number').value='';document.getElementById('card-expiry').value='';document.getElementById('card-cvv').value='';document.getElementById('card-name').value='';document.getElementById('card-num-display').textContent='•••• •••• •••• ••••';document.getElementById('card-name-display').textContent='YOUR NAME';document.getElementById('card-exp-display').textContent='MM/YY';document.getElementById('pay-submit-btn').disabled=false;document.getElementById('pay-submit-btn').innerHTML='<i class="fa-solid fa-lock text-xs mr-2"></i> Pay Now';document.getElementById('payment-modal').classList.add('open');};
+        window.closePaymentModal=function(){document.getElementById('payment-modal').classList.remove('open');payingOrderId=null;};
+        window.processPayment=async function(){
+            if(!payingOrderId)return;
+            const cn=document.getElementById('card-number').value.replace(/\s/g,''),ce=document.getElementById('card-expiry').value,cc=document.getElementById('card-cvv').value,cm=document.getElementById('card-name').value.trim();
+            if(cn.length<16){toast('Enter a valid card number','warning');return;}if(ce.length<5){toast('Enter a valid expiry','warning');return;}if(cc.length<3){toast('Enter a valid CVV','warning');return;}if(!cm){toast('Enter the name on card','warning');return;}
+            const btn=document.getElementById('pay-submit-btn');btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin text-xs mr-2"></i> Processing...';
+            await new Promise(r=>setTimeout(r,2000));
+            const o=orders.find(x=>x.id===payingOrderId);if(o){o.status='paid';o.updatedAt=Date.now();saveOrders();}
+            btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-lock text-xs mr-2"></i> Pay Now';closePaymentModal();toast(`Paid $${o.price.toFixed(2)}!`,'success');renderMyOrders();
+        };
+
+        /* Decline modal */
+        window.openDeclineModal=function(id){decliningOrderId=id;document.getElementById('decline-modal').classList.add('open');};
+        window.closeDeclineModal=function(){document.getElementById('decline-modal').classList.remove('open');decliningOrderId=null;};
+        window.confirmDecline=function(){if(!decliningOrderId)return;orders=orders.filter(o=>o.id!==decliningOrderId);saveOrders();closeDeclineModal();toast('Order cancelled.','info');renderMyOrders();decliningOrderId=null;};
+
+        /* Admin */
+        function setupAdminLogin(){
+            document.getElementById('admin-login-form').addEventListener('submit',async(e)=>{
+                e.preventDefault();
+                const user=document.getElementById('admin-user').value.trim();
+                const pass=document.getElementById('admin-pass').value;
+                // Hash with salt and compare — no plaintext password stored anywhere
+                const hash=await sha256(ADMIN_SALT+pass+ADMIN_SALT);
+                if(hash===ADMIN_HASH){
+                    isAdmin=true;sessionStorage.setItem(SESSION_ADMIN,'1');navigate('/dashboard');toast('Welcome, Admin','success');
+                } else { toast('Invalid credentials','error'); }
+            });
+        }
+        window.adminLogout=function(){isAdmin=false;sessionStorage.removeItem(SESSION_ADMIN);navigate('/');toast('Signed out','info');};
+
+        /* Admin: Download STL */
+        window.downloadSTL=function(orderId){
+            const o=orders.find(x=>x.id===orderId);if(!o)return;
+            // Try session storage first, then order data
+            let b64=getSessionFile(o.id)||o.stlBase64;
+            if(!b64){toast('STL file not available in this session','error');return;}
+            try{
+                const byteString=atob(b64);const ab=new ArrayBuffer(byteString.length);const ia=new Uint8Array(ab);
+                for(let i=0;i<byteString.length;i++) ia[i]=byteString.charCodeAt(i);
+                const blob=new Blob([ab],{type:'application/octet-stream'});
+                const url=URL.createObjectURL(blob);
+                const a=document.createElement('a');a.href=url;a.download=o.stlFileName;a.click();
+                URL.revokeObjectURL(url);toast('Downloading '+o.stlFileName,'success');
+            }catch{toast('Failed to download file','error');}
+        };
+
+        function renderDashboard(){
+            const total=orders.length,pending=orders.filter(o=>o.status==='pending').length,priced=orders.filter(o=>o.status==='priced').length,printing=orders.filter(o=>o.status==='printing').length,completed=orders.filter(o=>o.status==='completed').length,revenue=orders.filter(o=>['paid','printing','completed'].includes(o.status)&&o.price).reduce((s,o)=>s+o.price,0);
+            document.getElementById('dash-stats').innerHTML=`
+                <div class="bg-surface-800 border border-surface-500/50 rounded-xl p-4"><div class="text-muted-400 text-xs mb-1">Total</div><div class="font-heading text-2xl font-bold">${total}</div></div>
+                <div class="bg-surface-800 border border-surface-500/50 rounded-xl p-4"><div class="text-muted-400 text-xs mb-1">Need Price</div><div class="font-heading text-2xl font-bold text-yellow-400">${pending}</div></div>
+                <div class="bg-surface-800 border border-surface-500/50 rounded-xl p-4"><div class="text-muted-400 text-xs mb-1">Awaiting Pay</div><div class="font-heading text-2xl font-bold text-blue-400">${priced}</div></div>
+                <div class="bg-surface-800 border border-surface-500/50 rounded-xl p-4"><div class="text-muted-400 text-xs mb-1">Printing</div><div class="font-heading text-2xl font-bold text-brand-400">${printing}</div></div>
+                <div class="bg-surface-800 border border-surface-500/50 rounded-xl p-4 col-span-2 lg:col-span-1"><div class="text-muted-400 text-xs mb-1">Revenue</div><div class="font-heading text-2xl font-bold text-green-400">$${revenue.toFixed(2)}</div></div>`;
+            renderOrdersTable();
+        }
+
+        function renderOrdersTable(){
+            const filtered=currentFilter==='all'?orders:orders.filter(o=>o.status===currentFilter);
+            const tbody=document.getElementById('dash-orders-body'),empty=document.getElementById('dash-empty');
+            if(!filtered.length){tbody.innerHTML='';empty.classList.remove('hidden');return;}empty.classList.add('hidden');
+            tbody.innerHTML=filtered.map(o=>`<tr class="border-b border-surface-500/30 hover:bg-surface-700/50 transition-colors cursor-pointer" onclick="openModal('${o.id}')"><td class="px-5 py-4 font-mono text-sm font-medium">${o.id}</td><td class="px-5 py-4"><div class="text-sm">${o.customerName}</div><div class="text-xs text-muted-500">${o.customerEmail}</div></td><td class="px-5 py-4 text-sm text-brand-400">${o.stlFileName}</td><td class="px-5 py-4 text-sm text-muted-400">${formatDate(o.createdAt)}</td><td class="px-5 py-4"><span class="badge badge-${o.status}">${STATUS_LABELS[o.status]}</span></td><td class="px-5 py-4 text-sm font-medium">${o.price!==null?'$'+o.price.toFixed(2):'<span class="text-muted-500">--</span>'}</td><td class="px-5 py-4 text-right"><button class="text-muted-400 hover:text-white transition-colors text-sm" aria-label="View"><i class="fa-solid fa-arrow-up-right-from-square"></i></button></td></tr>`).join('');
+        }
+
+        function setupDashFilters(){
+            document.getElementById('dash-filters').addEventListener('click',e=>{
+                const b=e.target.closest('.filter-btn');if(!b)return;currentFilter=b.dataset.filter;
+                document.querySelectorAll('.filter-btn').forEach(x=>x.className=x===b?'filter-btn text-xs px-4 py-2 rounded-full bg-brand-400 text-white font-semibold transition-all':'filter-btn text-xs px-4 py-2 rounded-full bg-surface-600 text-muted-300 font-medium hover:bg-surface-500 transition-all');
+                renderOrdersTable();
+            });
+        }
+
+        /* Admin modal */
+        window.openModal=function(id){
+            selectedOrder=orders.find(o=>o.id===id);if(!selectedOrder)return;
+            const o=selectedOrder;
+            document.getElementById('modal-order-id').textContent=o.id;
+            document.getElementById('modal-name').textContent=o.customerName;
+            document.getElementById('modal-email').textContent=o.customerEmail;
+            document.getElementById('modal-phone').textContent=o.customerPhone||'N/A';
+            document.getElementById('modal-desc').textContent=o.description;
+            document.getElementById('modal-file').textContent=o.stlFileName;
+            document.getElementById('modal-material').textContent=o.material;
+            document.getElementById('modal-color').textContent=o.color;
+            document.getElementById('modal-qty').textContent=o.quantity;
+            const nw=document.getElementById('modal-notes-wrap');if(o.notes){nw.classList.remove('hidden');document.getElementById('modal-notes').textContent=o.notes;}else nw.classList.add('hidden');
+            // Account age
+            const users=loadUsers();
+            const userAcct=users[o.customerEmail];
+            document.getElementById('modal-account-age').textContent=userAcct?`Created ${formatDate(userAcct.createdAt)}`:'Account not found';
+            // Payment
+            const pi=document.getElementById('modal-pay-info');
+            if(['paid','printing','completed'].includes(o.status)) pi.innerHTML=`<span class="text-green-400"><i class="fa-solid fa-circle-check text-xs mr-1"></i>Paid $${o.price.toFixed(2)}</span>`;
+            else if(o.status==='priced') pi.innerHTML=`<span class="text-blue-400"><i class="fa-solid fa-hourglass-half text-xs mr-1"></i>Awaiting payment</span>`;
+            else pi.innerHTML=`<span class="text-muted-400"><i class="fa-solid fa-clock text-xs mr-1"></i>No payment yet</span>`;
+            // Price section
+            const ps=document.getElementById('modal-price-section');if(o.status==='pending'){ps.classList.remove('hidden');document.getElementById('modal-price-input').value='';}else ps.classList.add('hidden');
+            document.getElementById('modal-status-display').innerHTML=`<span class="badge badge-${o.status}">${STATUS_LABELS[o.status]}</span>`;
+            renderModalActions();
+            // STL preview
+            const sc=document.getElementById('modal-stl-preview');sc.innerHTML='';
+            const src=getSessionFile(o.id)||o.stlBase64;
+            if(src) stlViewerInstances.push(new STLViewer(sc,src));
+            else sc.innerHTML=`<div class="flex items-center justify-center h-full text-muted-500 text-sm"><div class="text-center"><i class="fa-solid fa-cube text-2xl mb-2"></i><p>STL not available</p><p class="text-xs mt-1">Files are only available in the same session they were uploaded</p></div></div>`;
+            document.getElementById('order-modal').classList.add('open');
+        };
+
+        function renderModalActions(){
+            const el=document.getElementById('modal-actions');const o=selectedOrder;let h='';
+            // Download button if file available
+            const hasFile=getSessionFile(o.id)||o.stlBase64;
+            if(hasFile) h+=`<button class="btn-download" onclick="event.stopPropagation();downloadSTL('${o.id}')"><i class="fa-solid fa-download mr-1"></i>Download STL</button>`;
+            if(o.status==='pending') h+=`<button class="btn-danger" onclick="rejectOrder()"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>`;
+            else if(o.status==='priced') h+=`<span class="text-sm text-blue-400"><i class="fa-solid fa-hourglass-half mr-1"></i>Waiting for customer</span>`;
+            else if(o.status==='paid') h+=`<button class="btn-primary text-sm" onclick="updateStatus('printing')"><i class="fa-solid fa-print mr-1"></i>Start Printing</button>`;
+            else if(o.status==='printing') h+=`<button class="btn-success" onclick="updateStatus('completed')"><i class="fa-solid fa-flag-checkered mr-1"></i>Complete</button>`;
+            else if(o.status==='completed') h+=`<span class="text-sm text-green-400"><i class="fa-solid fa-circle-check mr-1"></i>Done</span>`;
+            else if(o.status==='rejected') h+=`<span class="text-sm text-red-400"><i class="fa-solid fa-ban mr-1"></i>Rejected</span>`;
+            h+=`<button class="btn-danger ml-auto" onclick="deleteOrder()" title="Delete"><i class="fa-solid fa-trash text-xs"></i></button>`;
+            el.innerHTML=h;
+        }
+
+        window.setPrice=function(){const price=parseFloat(document.getElementById('modal-price-input').value);if(isNaN(price)||price<0){toast('Enter a valid price','warning');return;}selectedOrder.price=price;selectedOrder.status='priced';selectedOrder.updatedAt=Date.now();saveOrders();renderDashboard();openModal(selectedOrder.id);toast(`Price set to $${price.toFixed(2)}`,'success');};
+        window.rejectOrder=function(){selectedOrder.status='rejected';selectedOrder.updatedAt=Date.now();saveOrders();renderDashboard();openModal(selectedOrder.id);toast('Rejected','info');};
+        window.updateStatus=function(s){selectedOrder.status=s;selectedOrder.updatedAt=Date.now();saveOrders();renderDashboard();openModal(selectedOrder.id);toast(STATUS_LABELS[s],'success');};
+        window.deleteOrder=function(){orders=orders.filter(o=>o.id!==selectedOrder.id);saveOrders();closeModal();renderDashboard();toast('Deleted','info');};
+        window.closeModal=function(){document.getElementById('order-modal').classList.remove('open');stlViewerInstances.forEach(v=>v.dispose());stlViewerInstances=[];selectedOrder=null;};
+        document.getElementById('order-modal').addEventListener('click',e=>{if(e.target===document.getElementById('order-modal'))closeModal();});
+        document.getElementById('payment-modal').addEventListener('click',e=>{if(e.target===document.getElementById('payment-modal'))closePaymentModal();});
+        document.getElementById('decline-modal').addEventListener('click',e=>{if(e.target===document.getElementById('decline-modal'))closeDeclineModal();});
+        document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closePaymentModal();closeDeclineModal();}});
+
+        function setupMobileNav(){document.getElementById('mobile-toggle').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));document.querySelectorAll('#mobile-menu a').forEach(a=>a.addEventListener('click',()=>document.getElementById('mobile-menu').classList.remove('open')));}
+
+        /* ===== SETUP ADMIN PASSWORD FOR DEPLOYMENT ===== */
+        /*
+         * BEFORE DEPLOYING: You must set your actual admin password hash.
+         *
+         * 1. Go to: https://emn178.github.io/online-tools/sha256.html
+         * 2. Type your desired admin password (e.g. "MyStr0ngP@ss!")
+         * 3. Copy the 64-character hex hash
+         * 4. Replace ADMIN_HASH below with that hash
+         * 5. Also change ADMIN_SALT to something random
+         *
+         * The default hash below is just a placeholder — admin login will NOT work
+         * with any password until you set your own hash.
+         *
+         * ALSO change ADMIN_SALT to your own random string before deploying.
+         */
+
+        function init(){
+            // Restore session
+            const savedEmail=sessionStorage.getItem(SESSION_AUTH);
+            if(savedEmail){const users=loadUsers();if(users[savedEmail])currentUser=users[savedEmail];}
+            isAdmin=sessionStorage.getItem(SESSION_ADMIN)==='1';
+            loadOrders();setupUpload();setupColorPicker();setupQtyControls();setupCardInputs();setupOrderForm();setupAuth();setupAdminLogin();setupDashFilters();setupMobileNav();router();
+        }
+        init();
+    </script>
+</body>
+</html>
